@@ -98,7 +98,7 @@ function go3b(){
 	//bl3d.add( 320, 45, 30, 20, -70 );
 	
 	
-	onmousemove = function(E){
+	window.ontouchmove = onmousemove = function(E){
 		if(Math.abs($2)!==1)return;
 		var e = E||window.event; e.preventDefault?e.preventDefault() : (e.returnValue = false); e = e.changedTouches ? e.changedTouches[0] : e;
 		$2 = {
@@ -106,7 +106,7 @@ function go3b(){
 			y: Math.max( $.h+$.h, Math.min(cnv.height / cssZoom - $.h -$.h - 1, (e.pageY - cnv.offsetTop) / 2 / cssZoom ) ),
 			w: $.w,
 			h: $.h,
-			d: $.d * $2 / 10
+			d: $.d * $2 / 8
 		};
 	}
 	function brkEvt(E){
@@ -116,13 +116,13 @@ function go3b(){
 		E.returnValue = false;
 		return false;
 	}
-	oncontextmenu = brkEvt
-	onclick = brkEvt
-	onmousedown = function(E){
-		$2 = E.button-1;
+	oncontextmenu = brkEvt;
+	onclick = brkEvt;
+	window.ontouchstart = onmousedown = function(E){
+		$2 = (E.button|0)-1;
 		return brkEvt(E);
 	}
-	onmouseup = function(E){
+	window.ontouchend = onmouseup = function(E){
 		$2 = 0;
 		return brkEvt(E);
 	}
