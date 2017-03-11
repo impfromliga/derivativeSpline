@@ -1,0 +1,147 @@
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/><title>derivativeSpline</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+</head>
+<body style=margin:0;overflow:hidden>
+<canvas id=cnv style="border:1px solid;background:#fff;"></canvas>
+<p id=p style="position:absolute;font-weight:900;top:0px;text-shadow:0 0 3px #fff,0 0 2px #fff,0 0 2px #fff"></p>
+<script>
+"use strict";
+//cnv.width = Math.max(640,(innerWidth - 40)/cssZoom|0 ); cnv.height = Math.max(240, (innerHeight - 40)/cssZoom|0 );
+cnv.width = 512; cnv.height = 256;
+var cssZoom = 2;
+cnv.style.cssText = 'width:'+(cnv.width*cssZoom)+'px;height:'+(cnv.height*cssZoom)+'px;image-rendering:pixelated;';
+var ctx = cnv.getContext('2d');
+ctx.fillStyle = 'rgba(255,0,0,.5)';
+	
+onload = go3b;
+//onload = go2b;
+	
+//LIB:_________
+var Blob = function( ctx, y0 ){
+	this.ctx = ctx;
+	this.kofs = {};
+	this.kofs[ctx.canvas.width] = true;
+	this.y0 = y0;
+}
+Blob.prototype = {
+	add : function( x, w, h ){//FIX: overflow
+		x = ( x | 0 ) + 0.5, w = w | 0;
+		var k = h/16/w/w;
+		this.addKof( x - w - w | 0, 2 * k );
+		this.addKof( x - w | 0, -4 * k );
+		this.addKof( x + w | 0, 4 * k );
+		this.addKof( x + w + w | 0, -2 * k );
+	},
+	addKof : function( x, k ){
+		if( ( this.kofs[x|0] = k + ( this.kofs[x|0] || 0 ) ) == 0 ) delete this.kofs[x|0];
+	},
+	draw : function(){
+		var x = 0, y = this.y0, dy = 0, ddy = 0, dddy = 0;
+		for(var nxtX in this.kofs)
+			for( ddy += dddy, dddy = this.kofs[nxtX]; x < nxtX; )
+				this.ctx.lineTo( x++, y += dy += ddy ); //stress loop
+	}
+}
+//test
+function go2b(){
+	p.innerHTML = 'tap to test';
+	onclick = function(){
+		var t = performance.now();
+		var blob = new Blob( ctx, cnv.height*.75 );
+		for(var m = 1000, n = m; n--;)//init blobs
+			blob.add( Math.random() * (cnv.width - 520) + 260, Math.random() * 128 + 2, (Math.random() - 0.5) * cnv.height / 3);
+		p.innerHTML = 'avr. time to precompute ' + m + ' blobs:' + ( performance.now() - t ) + 'ms<br>';
+		var t = performance.now();
+		for(var m = 100, n = m; n--; blob.y0 -= 2, ctx.stroke())
+			blob.draw( ctx.beginPath() ); //stress draw
+		p.innerHTML += 'avr. time to draw one of ' + m + ' precompute line:' + ( performance.now() - t ) / m + 'ms'+
+			'<br>(the lines drawed by canvas path, single stroke per each)'+
+			'<br>canvas.context be more fast with putImageData()'+
+			'<br>(on codepen more actual in debug mode)';
+		ctx.fillRect( 0, cnv.height * .75 + 2, cnv.width, 1 ); //red line
+		ctx.clearRect(0, 0, cnv.width, cnv.height);
+	}
+}
+var Blob3d = function( ctx, y0) {
+	//this.ctx = ctx;
+	this.bl2d = [];
+	for(var n = ctx.canvas.height >> 1; n--;) this.bl2d[n] = new Blob( ctx, y0 +n +n );
+	//this.y0 = y0;
+}
+Blob3d.prototype = {
+	add : function ( x0, y0, w, h, d ){
+		y0 = y0 | 0; x0 = x0 | 0;
+		var ddD_perY = d*2/h/h;
+		y0 += .5;
+		for(var D = 0, dD = 0, y = 0.5; y < h; y++, D += dD += ddD_perY){
+			this.bl2d[ y0 + y ].add( x0, w, d + d - D);
+			this.bl2d[ y0 - y ].add( x0, w, d + d - D);
+			this.bl2d[ y0 + y - h - h ].add( x0, w, D);
+			this.bl2d[ y0 - y + h + h ].add( x0, w, D);
+		}
+	},
+	draw : function(){
+		for(var m = this.bl2d.length; m--; ctx.stroke())
+			this.bl2d[m].draw( ctx.beginPath() ); //stress draw
+	}
+}
+//test
+var counter = 4;
+function go3b(){
+	var bl3d = new Blob3d( ctx, 0 );
+	//bl3d.add( 200, 50, 40, 20, -100 );
+	var $ = { x: 220, y: 25, w: 12, h: 6, d: 70};
+	var $2 = 0; //mouse down flag: 1:left, -1:right, 0:none, {args}:add blob
+	//bl3d.add( $.x, $.y, $.w, $.h, $.d );
+	//bl3d.add( 320, 55, 70, 12, 70 );
+	//bl3d.add( 320, 45, 30, 20, -70 );
+	
+	
+	window.ontouchmove = onmousemove = function(E){
+		if(Math.abs($2)!==1)return;
+		var e = E||window.event; e.preventDefault?e.preventDefault() : (e.returnValue = false); e = e.changedTouches ? e.changedTouches[0] : e;
+		$2 = {
+			x: Math.max( $.w+$.w, (e.pageX - cnv.offsetLeft) / cssZoom ),
+			y: Math.max( $.h+$.h, Math.min(cnv.height / cssZoom - $.h -$.h - 1, (e.pageY - cnv.offsetTop) / 2 / cssZoom ) ),
+			w: $.w,
+			h: $.h,
+			d: $.d * $2 / 8
+		};
+	}
+	function brkEvt(E){
+		E.preventDefault();
+		E.stopPropagation();
+		E.cancelBubble();
+		E.returnValue = false;
+		return false;
+	}
+	oncontextmenu = brkEvt;
+	onclick = brkEvt;
+	window.ontouchstart = onmousedown = function(E){
+		$2 = (E.button|0)-1;
+		return brkEvt(E);
+	}
+	window.ontouchend = onmouseup = function(E){
+		$2 = 0;
+		return brkEvt(E);
+	}
+	
+	render();
+	function render(){
+		requestAnimationFrame(render);
+		//console.log($2);
+		if(typeof $2 !== 'object')return;
+		//bl3d.add( $.x, $.y, $.w, $.h, -$.d );
+		bl3d.add( $2.x, $2.y, $2.w, $2.h, $2.d );
+		console.log(counter++);
+		$2 = ($2.d>0)-($2.d<0);
+		ctx.clearRect( 0, 0, cnv.width, cnv.height );
+		bl3d.draw();
+	}
+	bl3d.draw();
+}
+</script>
+</body>
